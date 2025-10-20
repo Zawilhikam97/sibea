@@ -265,6 +265,11 @@ class PendaftaranResource extends Resource
                 ->default($mahasiswa?->ipk)
                 ->disabled(true)
                 ->dehydrated(false),
+
+            Forms\Components\TextInput::make('status_mahasiswa')
+                ->default($mahasiswa?->status_mahasiswa)
+                ->disabled(true)
+                ->dehydrated(false),
         ];
     }
 

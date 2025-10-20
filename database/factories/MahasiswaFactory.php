@@ -47,6 +47,7 @@ class MahasiswaFactory extends Factory
             'semester' => $this->faker->numberBetween(1, 8), // Tambahan untuk 'semester'
             'ip' => $this->faker->randomFloat(2, 3.00, 4.00),
             'ipk' => $this->faker->randomFloat(2, 3.00, 4.00),
+            'status_mahasiswa' => 'Aktif',
         ];
     }
 

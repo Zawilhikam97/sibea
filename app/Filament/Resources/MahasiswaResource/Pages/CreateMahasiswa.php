@@ -29,6 +29,7 @@ class CreateMahasiswa extends CreateRecord
 
                 // Tambahkan user_id dari user yang baru dibuat
                 $data['user_id'] = $user->id;
+                $data['status_mahasiswa'] = 'Aktif';
 
                 // Buat record Mahasiswa dengan data yang sudah disiapkan
                 return static::getModel()::create($data);

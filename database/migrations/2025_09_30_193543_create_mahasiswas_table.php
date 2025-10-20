@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('semester');
             $table->decimal('ip', 4, 2);
             $table->decimal('ipk', 4, 2);
+            $table->string('status_mahasiswa')->nullable()->default('Aktif');
             $table->timestamps();
             $table->softDeletes();
         });

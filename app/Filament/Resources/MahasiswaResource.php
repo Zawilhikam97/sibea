@@ -117,6 +117,17 @@ class MahasiswaResource extends Resource
                             ->required()
                             ->minValue(0)
                             ->maxValue(4),
+
+                        Components\Select::make('status_mahasiswa')
+                            ->options([
+                                'Aktif' => 'Aktif',
+                                'Cuti' => 'Cuti',
+                                'Lulus' => 'Lulus',
+                                'Drop Out' => 'Drop Out',
+                            ])
+                            ->hidden(fn(string $operation): bool => $operation === 'create')
+                            ->required()
+                            ->default('Aktif'),
                     ])
                     ->columns(2)
                     ->columnSpanFull()
@@ -151,6 +162,9 @@ class MahasiswaResource extends Resource
                         TextEntry::make('ipk')
                             ->label('IPK')
                             ->badge(),
+                        TextEntry::make('status_mahasiswa')
+                            ->badge()
+                            ->color('gray'),
                     ])
                     ->columns(2)
                     ->columnSpan(2),
@@ -189,6 +203,7 @@ class MahasiswaResource extends Resource
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('no_hp')
+                    ->label('No Handphone')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('prodi')
@@ -203,11 +218,18 @@ class MahasiswaResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('ip')
+                    ->label('IPK')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('ipk')
+                    ->label('IP')
                     ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('status_mahasiswa')
+                    ->badge()
+                    ->color('gray')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('created_at')
@@ -228,12 +250,22 @@ class MahasiswaResource extends Resource
                 Tables\Filters\SelectFilter::make('angkatan')->options(
                     Mahasiswa::query()->distinct()->pluck('angkatan', 'angkatan')->toArray()
                 )->label('Angkatan'),
+
                 Tables\Filters\SelectFilter::make('fakultas')->options(
                     Mahasiswa::query()->distinct()->pluck('fakultas', 'fakultas')->toArray()
                 )->label('Fakultas'),
+
                 Tables\Filters\SelectFilter::make('prodi')->options(
                     Mahasiswa::query()->distinct()->pluck('prodi', 'prodi')->toArray()
                 )->label('Prodi'),
+
+                Tables\Filters\SelectFilter::make('status_mahasiswa')
+                    ->options([
+                        'Aktif' => 'Aktif',
+                        'Cuti' => 'Cuti',
+                        'Lulus' => 'Lulus',
+                        'Drop Out' => 'Drop Out',
+                    ])
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
