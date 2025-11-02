@@ -46,15 +46,18 @@ class ViewPendaftaran extends ViewRecord
                 ->color('success')
                 ->action(function () {
                     $record = $this->record;
+                    $periode = $record->periodeBeasiswa()->with('berkasWajibs')->first();
 
-                    $jumlahBerkas = $record->berkasPendaftar()->count();
-                    if ($jumlahBerkas === 0) {
-                        Notification::make()
-                            ->title('Gagal Mengirim')
-                            ->body('Anda belum mengupload berkas apapun. Silakan edit pendaftaran dan upload berkas terlebih dahulu.')
-                            ->danger()
-                            ->send();
-                        return;
+                    if ($periode->berkasWajibs->isNotEmpty()) {
+                        $jumlahBerkas = $record->berkasPendaftar()->count();
+                        if ($jumlahBerkas === 0) {
+                            Notification::make()
+                                ->title('Gagal Mengirim')
+                                ->body('Anda belum mengupload berkas apapun. Silakan edit pendaftaran dan upload berkas terlebih dahulu.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
                     }
 
                     $record->update([

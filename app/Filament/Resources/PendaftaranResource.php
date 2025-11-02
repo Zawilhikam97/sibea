@@ -170,6 +170,8 @@ class PendaftaranResource extends Resource
                                             ->copyable(false)
                                             ->formatStateUsing(fn() => 'Lihat Berkas')
                                     ])
+                                    ->hiddenLabel()
+                                    ->placeholder('-')
                                     ->grid(4),
                             ]),
                     ])
