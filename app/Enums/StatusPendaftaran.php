@@ -13,6 +13,7 @@ enum StatusPendaftaran: string implements HasLabel, HasColor
     case TERVERIFIKASI = 'terverifikasi';
     case DITERIMA = 'diterima';
     case DITOLAK = 'ditolak';
+    case CADANGAN = 'cadangan';
 
     public function getLabel(): string
     {
@@ -23,6 +24,7 @@ enum StatusPendaftaran: string implements HasLabel, HasColor
             self::TERVERIFIKASI => 'Terverifikasi',
             self::DITERIMA => 'Diterima',
             self::DITOLAK => 'Ditolak',
+            self::CADANGAN => 'cadangan',
         };
     }
 
@@ -35,6 +37,7 @@ enum StatusPendaftaran: string implements HasLabel, HasColor
             self::TERVERIFIKASI => 'primary',
             self::DITERIMA => 'success',
             self::DITOLAK => 'danger',
+            self::CADANGAN => 'info',
         };
     }
 
@@ -47,6 +50,7 @@ enum StatusPendaftaran: string implements HasLabel, HasColor
             self::TERVERIFIKASI => 'heroicon-o-check-circle',
             self::DITERIMA => 'heroicon-o-check-badge',
             self::DITOLAK => 'heroicon-o-x-circle',
+            self::CADANGAN => 'heroicon-o-information-cirlce',
         };
     }
 }
