@@ -295,4 +295,11 @@ class PeriodeBeasiswaResource extends Resource
             SoftDeletingScope::class,
         ]);
     }
+
+    public static function getLabel(): ?string
+    {
+        return auth()->check() && auth()->user()->hasRole('mahasiswa')
+            ? 'Beasiswa'
+            : 'Periode Beasiswa';
+    }
 }
