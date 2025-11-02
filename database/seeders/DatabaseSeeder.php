@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Beasiswa;
 use App\Models\Mahasiswa;
 use App\Models\PeriodeBeasiswa;
 use App\Models\User;
@@ -16,6 +15,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call([
+            FakultasSeeder::class,
+        ]);
+
         DB::table('roles')->insert([
             ['name' => 'admin'],
             ['name' => 'staf'],
