@@ -24,7 +24,7 @@ enum StatusPendaftaran: string implements HasLabel, HasColor
             self::TERVERIFIKASI => 'Terverifikasi',
             self::DITERIMA => 'Diterima',
             self::DITOLAK => 'Ditolak',
-            self::CADANGAN => 'cadangan',
+            self::CADANGAN => 'Cadangan',
         };
     }
 
