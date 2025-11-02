@@ -4,7 +4,9 @@ namespace App\Filament\Resources;
 
 use App\Filament\Exports\MahasiswaExporter;
 use App\Filament\Resources\MahasiswaResource\Pages;
+use App\Models\Fakultas;
 use App\Models\Mahasiswa;
+use App\Models\Prodi;
 use App\Models\User;
 use Filament\Forms\Components;
 use Filament\Forms\Form;
@@ -63,9 +65,6 @@ class MahasiswaResource extends Resource
                             ->required()
                             ->maxLength(255),
 
-                        Components\DatePicker::make('ttl')
-                            ->label('Tanggal Lahir')
-                            ->required(),
                         Components\TextInput::make('tempat_lahir')
                             ->label('Tempat Lahir')
                             ->required(),
@@ -83,21 +82,61 @@ class MahasiswaResource extends Resource
                                 'regex' => 'Format nomor HP tidak valid. Contoh: 081234567890',
                             ]),
 
-                        Components\TextInput::make('prodi')
+                        Components\Select::make('fakultas')
+                            ->options(Fakultas::pluck('nama_fakultas', 'nama_fakultas'))
+                            ->reactive()
+                            ->afterStateUpdated(fn(callable $set) => $set('prodi', null))
                             ->required(),
 
-                        Components\TextInput::make('fakultas')
+                        Components\Select::make('prodi')
+                            ->label('Program Studi')
+                            ->options(function (callable $get) {
+                                $namaFakultas = $get('fakultas');
+                                if (!$namaFakultas) {
+                                    return [];
+                                }
+
+                                $fakultas = Fakultas::where('nama_fakultas', $namaFakultas)->first();
+                                if (!$fakultas) {
+                                    return [];
+                                }
+
+                                return Prodi::where('fakultas_id', $fakultas->id)->pluck('nama_prodi', 'nama_prodi');
+                            })
                             ->required(),
 
                         Components\TextInput::make('angkatan')
                             ->numeric()
-                            ->required(),
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function (callable $set, $state) {
+                                if ($state) {
+                                    $tahunSekarang = now()->year;
+                                    $bulanSekarang = now()->month;
+
+                                    $selisihTahun = $tahunSekarang - (int) $state;
+                                    $semester = ($selisihTahun * 2);
+
+                                    if ($bulanSekarang >= 7) {
+                                        $semester += 1;
+                                    } else {
+                                        $semester = max($semester, 1);
+                                    }
+
+                                    $semester = min($semester, 14);
+
+                                    $set('semester', $semester);
+                                }
+                            }),
 
                         Components\TextInput::make('semester')
                             ->numeric()
                             ->minValue(1)
                             ->maxValue(14)
-                            ->required(),
+                            ->required()
+                            ->disabled()
+                            ->dehydrated(true)
+                            ->hint('Terisi otomatis berdasarkan angkatan'),
 
                         Components\TextInput::make('sks')
                             ->label('SKS (Satuan Kredit Semester)')
