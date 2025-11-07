@@ -22,6 +22,7 @@ class ViewPendaftaran extends ViewRecord
         // Aksi untuk mahasiswa
         if ($user->hasRole('mahasiswa')) {
             $actions[] = Actions\EditAction::make()
+                ->icon('heroicon-o-pencil-square')
                 ->visible(fn() => in_array($this->record->status, [
                     StatusPendaftaran::DRAFT,
                     StatusPendaftaran::PERBAIKAN,
@@ -39,11 +40,11 @@ class ViewPendaftaran extends ViewRecord
                 ->modalDescription(
                     fn() => $this->record->status === StatusPendaftaran::PERBAIKAN
                         ? 'Pastikan Anda sudah melakukan perbaikan sesuai catatan yang diberikan.'
-                        : 'Setelah dikirim Anda tidak dapat mengedit pendaftaran ini lagi sampai diizinkan oleh admin.'
+                        : 'Setelah dikirim Anda tidak dapat mengedit pendaftaran ini lagi. Kecuali status Draft atau Perlu Perbaikan'
                 )
                 ->modalSubmitActionLabel('Ya, Kirim Pendaftaran')
                 ->modalCancelActionLabel('Batal')
-                ->color('success')
+                ->color('info')
                 ->action(function () {
                     $record = $this->record;
                     $periode = $record->periodeBeasiswa()->with('berkasWajibs')->first();

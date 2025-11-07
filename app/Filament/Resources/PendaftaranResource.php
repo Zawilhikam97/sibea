@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Enums\StatusPendaftaran;
 use App\Filament\Resources\PendaftaranResource\Pages;
+use App\Models\Mahasiswa;
 use App\Models\Pendaftaran;
 use App\Models\PeriodeBeasiswa;
 use Filament\Forms;
@@ -14,7 +15,6 @@ use Filament\Infolists\Components;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\HtmlString;
@@ -45,15 +45,11 @@ class PendaftaranResource extends Resource
                             ->schema(self::getMahasiswaSchema())
                             ->columns(2),
                     ])
-                    ->collapsible(),
+                    ->collapsed(),
 
                 Forms\Components\Section::make('Upload Berkas')
                     ->description('Upload berkas sesuai persyaratan yang telah ditentukan.')
                     ->schema([
-                        Forms\Components\Placeholder::make('info_berkas')
-                            ->content('Semua berkas harus diupload dengan format PDF. Maksimal ukuran file adalah 5MB masing-masing.')
-                            ->columnSpanFull(),
-
                         Forms\Components\Group::make()
                             ->schema(function (Get $get, ?Pendaftaran $record) {
                                 $periodeBeasiswaId = $get('periode_beasiswa_id')
@@ -64,7 +60,7 @@ class PendaftaranResource extends Resource
                                     return [
                                         Forms\Components\Placeholder::make('error_periode')
                                             ->content(new HtmlString(
-                                                '<div class="text-danger-600">
+                                                '<div style="color: red;">
                                                     <strong>Error:</strong> Periode beasiswa tidak ditemukan.
                                                     Silakan kembali ke halaman periode beasiswa dan pilih "Daftar" kembali.
                                                 </div>'
@@ -79,11 +75,15 @@ class PendaftaranResource extends Resource
                                 if (!$periode || $periode->berkasWajibs->isEmpty()) {
                                     return [
                                         Forms\Components\Placeholder::make('info_no_berkas')
-                                            ->content('Tidak ada berkas yang perlu diupload untuk periode ini.'),
+                                            ->label('Tidak ada berkas')
+                                            ->content(new HtmlString('<i style="color: grey;">Tidak ada berkas yang perlu diupload untuk beasiswa ini</i>')),
                                     ];
                                 }
 
-                                $fields = [];
+                                $fields[] = Forms\Components\Placeholder::make('info_berkas')
+                                    ->hiddenLabel()
+                                    ->content(new HtmlString('<i style="color: grey;">Semua berkas harus diupload dengan format PDF. Maksimal ukuran file adalah 5MB masing-masing</i>'));
+
                                 foreach ($periode->berkasWajibs as $berkas) {
                                     $fields[] = Forms\Components\FileUpload::make('berkas_' . $berkas->id)
                                         ->label($berkas->nama_berkas)
@@ -130,6 +130,7 @@ class PendaftaranResource extends Resource
                                     ->label('Terakhir Diupdate')
                                     ->dateTime(),
                             ])
+                            ->collapsible()
                             ->columns(2),
 
                         Components\Section::make('Data Mahasiswa')
@@ -157,6 +158,7 @@ class PendaftaranResource extends Resource
                                 Components\TextEntry::make('mahasiswa.sks')
                                     ->label('Total SKS'),
                             ])
+                            ->collapsible()
                             ->columns(3),
 
                         Components\Section::make('Berkas Yang Diupload')
@@ -176,9 +178,10 @@ class PendaftaranResource extends Resource
                                             ->formatStateUsing(fn() => 'Lihat Berkas')
                                     ])
                                     ->hiddenLabel()
-                                    ->placeholder('-')
+                                    ->placeholder('Tidak ada berkas yang diupload')
                                     ->grid(4),
-                            ]),
+                            ])
+                            ->collapsible(),
                     ])
                     ->columnSpan(fn($record) => $record->note ? 2 : 3),
 
@@ -193,6 +196,123 @@ class PendaftaranResource extends Resource
                     ->visible(fn($record) => filled($record->note)),
             ])
             ->columns(3);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('periodeBeasiswa.beasiswa.nama_beasiswa')
+                    ->label('Beasiswa')
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('periodeBeasiswa.nama_periode')
+                    ->label('Periode')
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('mahasiswa.nama')
+                    ->searchable()
+                    ->sortable()
+                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
+
+                Tables\Columns\TextColumn::make('mahasiswa.user.nim')
+                    ->label('NIM')
+                    ->searchable()
+                    ->sortable()
+                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
+
+                Tables\Columns\TextColumn::make('status')
+                    ->badge(),
+
+                Tables\Columns\TextColumn::make('mahasiswa.fakultas')
+                    ->label('Fakultas')
+                    ->sortable()
+                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
+                Tables\Columns\TextColumn::make('mahasiswa.prodi')
+                    ->label('Prodi')
+                    ->sortable()
+                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->options(collect(StatusPendaftaran::cases())->mapWithKeys(
+                        fn(StatusPendaftaran $status) => [$status->value => $status->getLabel()]
+                    )),
+
+                Tables\Filters\SelectFilter::make('fakultas')
+                    ->label('Fakultas')
+                    ->hidden(auth()->user()->hasRole('mahasiswa'))
+                    ->options(
+                        Mahasiswa::query()->distinct()->pluck('fakultas', 'fakultas')->toArray()
+                    )
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when(
+                            $data['value'],
+                            fn(Builder $query, $fakultas): Builder => $query->whereHas(
+                                'mahasiswa',
+                                fn(Builder $query) => $query->where('fakultas', $fakultas)
+                            )
+                        );
+                    }),
+
+                Tables\Filters\SelectFilter::make('prodi')
+                    ->label('Prodi')
+                    ->hidden(auth()->user()->hasRole('mahasiswa'))
+                    ->options(
+                        Mahasiswa::query()->distinct()->pluck('prodi', 'prodi')->toArray()
+                    )
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when(
+                            $data['value'],
+                            fn(Builder $query, $prodi): Builder => $query->whereHas(
+                                'mahasiswa',
+                                fn(Builder $query) => $query->where('prodi', $prodi)
+                            )
+                        );
+                    }),
+            ])
+            ->actions([
+                Tables\Actions\ViewAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn(Pendaftaran $record) => in_array($record->status, [StatusPendaftaran::DRAFT, StatusPendaftaran::PERBAIKAN]) && auth()->user()->hasRole('mahasiswa')),
+            ])
+            ->defaultSort('created_at', 'desc');
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListPendaftarans::route('/'),
+            'create' => Pages\CreatePendaftaran::route('/create'),
+            'view' => Pages\ViewPendaftaran::route('/{record}'),
+            'edit' => Pages\EditPendaftaran::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+
+        if ($user->hasRole('mahasiswa')) {
+            $query->where('mahasiswa_id', $user->mahasiswa->id)
+                ->whereNull('deleted_at');
+        } else if ($user->hasAnyRole(['admin', 'staf'])) {
+            $query->where('status', '!=', StatusPendaftaran::DRAFT->value);
+        }
+
+        return $query->withoutGlobalScopes([
+            SoftDeletingScope::class,
+        ]);
     }
 
     /**
@@ -278,109 +398,5 @@ class PendaftaranResource extends Resource
                 ->disabled(true)
                 ->dehydrated(false),
         ];
-    }
-
-    public static function table(Table $table): Table
-    {
-        return $table
-            ->columns([
-                Tables\Columns\TextColumn::make('periodeBeasiswa.beasiswa.nama_beasiswa')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('periodeBeasiswa.nama_periode')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('mahasiswa.nama')
-                    ->searchable()
-                    ->sortable()
-                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
-                Tables\Columns\TextColumn::make('mahasiswa.user.nim')
-                    ->label('NIM')
-                    ->searchable()
-                    ->sortable()
-                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
-
-                Tables\Columns\TextColumn::make('status')
-                    ->badge(),
-
-                Tables\Columns\TextColumn::make('note')
-                    ->label('Catatan')
-                    ->limit(50)
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
-                Tables\Columns\TextColumn::make('deleted_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
-            ])
-            ->filters([
-                Tables\Filters\TrashedFilter::make()
-                    ->hidden(fn() => auth()->user()->hasRole('mahasiswa')),
-                Tables\Filters\SelectFilter::make('status')
-                    ->options(collect(StatusPendaftaran::cases())->mapWithKeys(
-                        fn(StatusPendaftaran $status) => [$status->value => $status->getLabel()]
-                    )),
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make()
-                    ->visible(fn(Pendaftaran $record) => in_array($record->status, [StatusPendaftaran::DRAFT, StatusPendaftaran::PERBAIKAN]) && auth()->user()->hasRole('mahasiswa')),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\ForceDeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
-                ])
-                    ->visible(fn() => auth()->user()->hasRole('admin')),
-            ])
-            ->defaultSort('created_at', 'desc');
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
-    }
-
-    public static function getPages(): array
-    {
-        return [
-            'index' => Pages\ListPendaftarans::route('/'),
-            'create' => Pages\CreatePendaftaran::route('/create'),
-            'view' => Pages\ViewPendaftaran::route('/{record}'),
-            'edit' => Pages\EditPendaftaran::route('/{record}/edit'),
-        ];
-    }
-
-    public static function getEloquentQuery(): Builder
-    {
-        $query = parent::getEloquentQuery();
-        $user = auth()->user();
-
-        if ($user->hasRole('mahasiswa')) {
-            $query->where('mahasiswa_id', $user->mahasiswa->id)
-                ->whereNull('deleted_at');
-        } else if ($user->hasAnyRole(['admin', 'staf'])) {
-            $query->where('status', '!=', StatusPendaftaran::DRAFT->value);
-        }
-
-        return $query->withoutGlobalScopes([
-            SoftDeletingScope::class,
-        ]);
     }
 }

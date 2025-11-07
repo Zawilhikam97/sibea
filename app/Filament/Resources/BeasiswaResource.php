@@ -32,14 +32,14 @@ class BeasiswaResource extends Resource
                         Forms\Components\TextInput::make('nama_beasiswa')
                             ->required(),
 
+                        Forms\Components\TextInput::make('lembaga_penyelenggara')
+                            ->required(),
+
                         Forms\Components\Select::make('kategori_id')
                             ->relationship('kategori', 'nama_kategori')
                             ->multiple()
                             ->searchable()
                             ->preload()
-                            ->required(),
-
-                        Forms\Components\TextInput::make('lembaga_penyelenggara')
                             ->required(),
 
                         Forms\Components\Textarea::make('deskripsi')
@@ -57,7 +57,9 @@ class BeasiswaResource extends Resource
                 Components\Section::make()
                     ->schema([
                         Components\TextEntry::make('nama_beasiswa'),
-                        Components\TextEntry::make('kategori.nama_kategori'),
+                        Components\TextEntry::make('kategori.nama_kategori')
+                            ->badge()
+                            ->color('gray'),
                         Components\TextEntry::make('lembaga_penyelenggara'),
                         Components\TextEntry::make('deskripsi')
                             ->placeholder('-')
@@ -92,6 +94,8 @@ class BeasiswaResource extends Resource
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('kategori.nama_kategori')
+                    ->badge()
+                    ->color('gray')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('lembaga_penyelenggara')

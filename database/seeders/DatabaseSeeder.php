@@ -88,7 +88,7 @@ class DatabaseSeeder extends Seeder
             ],
         ]);
 
-        PeriodeBeasiswa::factory(5)->create();
-        Mahasiswa::factory(50)->create();
+        // PeriodeBeasiswa::factory(5)->create();
+        // Mahasiswa::factory(50)->create();
     }
 }

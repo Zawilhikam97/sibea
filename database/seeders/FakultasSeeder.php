@@ -17,7 +17,8 @@ class FakultasSeeder extends Seeder
             ['nama_fakultas' => "Fakultas Tarbiyah dan Ilmu Keguruan"],
             ['nama_fakultas' => "Fakultas Syari'ah"],
             ['nama_fakultas' => "Fakultas Ekonomi dan Bisnis Islam"],
-            ['nama_fakultas' => "Fakultas Ushuluddin Adab dan Dakwah"]
+            ['nama_fakultas' => "Fakultas Ushuluddin Adab dan Dakwah"],
+            ['nama_fakultas' => "Pasca Sarjana"]
         ]);
 
         DB::table('prodis')->insert([
@@ -44,9 +45,19 @@ class FakultasSeeder extends Seeder
             // Fuad
             ['fakultas_id' => 4, 'nama_prodi' => "Manajemen Dakwah"],
             ['fakultas_id' => 4, 'nama_prodi' => "Komunikasi dan Penyiaran Islam"],
-            ['fakultas_id' => 4, 'nama_prodi' => "Bimbingan Konseling Islam"],
+            ['fakultas_id' => 4, 'nama_prodi' => "Bimbingan dan Konseling Islam"],
             ['fakultas_id' => 4, 'nama_prodi' => "Ilmu Al-Qur`an dan Tafsir"],
-            ['fakultas_id' => 4, 'nama_prodi' => "Sistem Informasi"]
+            ['fakultas_id' => 4, 'nama_prodi' => "Sistem Informasi"],
+            ['fakultas_id' => 4, 'nama_prodi' => "Ilmu Hadis"],
+
+            // Pasca
+            ['fakultas_id' => 5, 'nama_prodi' => "Pendidikan Agama Islam"],
+            ['fakultas_id' => 5, 'nama_prodi' => "Manajemen Pendidikan Islam"],
+            ['fakultas_id' => 5, 'nama_prodi' => "Komunikasi dan Penyiaran Islam"],
+            ['fakultas_id' => 5, 'nama_prodi' => "Pendidikan Islam Anak Usia Dini"],
+            ['fakultas_id' => 5, 'nama_prodi' => "Hukum Keluarga"],
+            ['fakultas_id' => 5, 'nama_prodi' => "Ekonomi Syariah"],
+            ['fakultas_id' => 5, 'nama_prodi' => "Ilmu AL-Qur`an dan Tafsir"],
         ]);
     }
 }

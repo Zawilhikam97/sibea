@@ -5,6 +5,7 @@ namespace App\Filament\Resources\BeasiswaResource\RelationManagers;
 use App\Filament\Resources\PeriodeBeasiswaResource;
 use App\Models\PeriodeBeasiswa;
 use Filament\Forms;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Form;
 use Filament\Infolists\Components;
 use Filament\Infolists\Infolist;
@@ -48,7 +49,7 @@ class PeriodeBeasiswasRelationManager extends RelationManager
                 Forms\Components\Section::make('Persyaratan Pre-Check')
                     ->schema([
                         Forms\Components\Repeater::make('persyaratans_json')
-                            ->label('Persyaratan Pre-Check')
+                            ->hiddenLabel()
                             ->schema([
                                 Forms\Components\Select::make('jenis')
                                     ->options([
@@ -74,7 +75,8 @@ class PeriodeBeasiswasRelationManager extends RelationManager
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Berkas yang Wajib Diupload')
+                Forms\Components\Section::make('Berkas Persyaratan')
+                    ->description('Pilih berkas yang wajib diupload oleh pendaftar beasiswa.')
                     ->schema([
                         Forms\Components\Select::make('berkasWajibs')
                             ->relationship('berkasWajibs', 'nama_berkas')
@@ -90,7 +92,6 @@ class PeriodeBeasiswasRelationManager extends RelationManager
                                     ->nullable(),
                             ])
                             ->hiddenLabel()
-                            ->helperText('Pilih berkas yang wajib diupload oleh pendaftar beasiswa.')
                             ->columnSpanFull(),
                     ]),
             ]);
@@ -115,21 +116,6 @@ class PeriodeBeasiswasRelationManager extends RelationManager
                     ])
                     ->columns(2),
 
-                Components\Section::make('Berkas Wajib Upload')
-                    ->schema([
-                        Components\RepeatableEntry::make('berkasWajibs')
-                            ->label('')
-                            ->schema([
-                                Components\TextEntry::make('nama_berkas')
-                                    ->label(''),
-                                Components\TextEntry::make('deskripsi')
-                                    ->placeholder('-')
-                                    ->label(''),
-                            ])
-                            ->contained(false)
-                            ->columns(2),
-                    ]),
-
                 Components\Section::make('Persyaratan Pre-Check')
                     ->schema([
                         Components\RepeatableEntry::make('persyaratans_json')
@@ -142,10 +128,27 @@ class PeriodeBeasiswasRelationManager extends RelationManager
                                 Components\TextEntry::make('keterangan')
                                     ->label(''),
                             ])
+                            ->placeholder('Tidak ada persyaratan pre-check')
                             ->columns(3),
                     ]),
 
-                Components\Section::make('Informasi tambahan')
+                Components\Section::make('Berkas Persyaratan')
+                    ->schema([
+                        Components\RepeatableEntry::make('berkasWajibs')
+                            ->label('')
+                            ->schema([
+                                Components\TextEntry::make('nama_berkas')
+                                    ->label(''),
+                                Components\TextEntry::make('deskripsi')
+                                    ->placeholder('-')
+                                    ->label(''),
+                            ])
+                            ->placeholder('Tidak ada berkas yang wajib diupload')
+                            ->contained(false)
+                            ->columns(2),
+                    ]),
+
+                Components\Section::make()
                     ->schema([
                         Components\TextEntry::make('created_at')
                             ->dateTime()
@@ -157,7 +160,6 @@ class PeriodeBeasiswasRelationManager extends RelationManager
                             ->dateTime()
                             ->visible(fn(PeriodeBeasiswa $record): bool => $record->trashed()),
                     ])
-                    ->collapsed()
             ]);
     }
 
@@ -201,6 +203,27 @@ class PeriodeBeasiswasRelationManager extends RelationManager
             ])
             ->filters([
                 Tables\Filters\TrashedFilter::make(),
+
+                Tables\Filters\TernaryFilter::make('is_aktif')
+                    ->label('Aktif')
+                    ->hidden(fn(): bool => auth()->user()->hasRole('mahasiswa')),
+
+                Tables\Filters\Filter::make('created_at')
+                    ->form([
+                        DatePicker::make('tanggal_mulai_daftar'),
+                        DatePicker::make('tanggal_akhir_daftar'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['tanggal_mulai_daftar'],
+                                fn(Builder $query, $date): Builder => $query->whereDate('tanggal_mulai_daftar', '>=', $date),
+                            )
+                            ->when(
+                                $data['tanggal_akhir_daftar'],
+                                fn(Builder $query, $date): Builder => $query->whereDate('tanggal_akhir_daftar', '<=', $date),
+                            );
+                    })
             ])
             ->headerActions([
                 Tables\Actions\CreateAction::make(),
@@ -208,8 +231,14 @@ class PeriodeBeasiswasRelationManager extends RelationManager
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
-                // ->url(fn($record) => PeriodeBeasiswaResource::getUrl('edit', ['record' => $record])),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('Detail')
+                        ->icon('heroicon-s-document-magnifying-glass')
+                        ->color('warning')
+                        ->url(fn(PeriodeBeasiswa $record) => PeriodeBeasiswaResource::getUrl('edit', ['record' => $record])),
+
+                    Tables\Actions\DeleteAction::make(),
+                ])->color('secondary'),
                 Tables\Actions\ForceDeleteAction::make(),
                 Tables\Actions\RestoreAction::make(),
             ])

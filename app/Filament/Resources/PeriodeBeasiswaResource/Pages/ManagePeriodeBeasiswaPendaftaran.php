@@ -1,28 +1,47 @@
 <?php
 
-namespace App\Filament\Resources\PeriodeBeasiswaResource\RelationManagers;
+namespace App\Filament\Resources\PeriodeBeasiswaResource\Pages;
 
 use App\Enums\StatusPendaftaran;
-use App\Filament\Resources\PendaftaranResource;
 use App\Filament\Resources\PeriodeBeasiswaResource;
+use App\Models\Mahasiswa;
 use App\Models\Pendaftaran;
+use Filament\Actions;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Infolists\Components;
 use Filament\Infolists\Infolist;
-use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Resources\Pages\ManageRelatedRecords;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class PendaftaransRelationManager extends RelationManager
+class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
 {
+    protected static string $resource = PeriodeBeasiswaResource::class;
+
     protected static string $relationship = 'pendaftarans';
-    protected static null|string $title = 'Pendaftar';
-    protected static null|string $label = 'Pendaftaran Beasiswa';
+
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+
+    public static function getNavigationLabel(): string
+    {
+        return 'Pendaftar';
+    }
+
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        $user = auth()->user();
+        $pendaftaran = $this->record;
+
+        if ($user->hasRole('mahasiswa')) {
+            $this->redirect($this->getResource()::getUrl('view', ['record' => $pendaftaran]));
+        }
+    }
 
     public function form(Form $form): Form
     {
@@ -141,6 +160,7 @@ class PendaftaransRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->recordTitleAttribute('id')
             ->columns([
                 Tables\Columns\TextColumn::make('mahasiswa.user.nim')
                     ->label('NIM')
@@ -156,50 +176,75 @@ class PendaftaransRelationManager extends RelationManager
                     ->badge(),
             ])
             ->filters([
-                Tables\Filters\TrashedFilter::make(),
+                Tables\Filters\TrashedFilter::make()
+                    ->hidden(auth()->user()->hasRole('mahasiswa')),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->options(collect(StatusPendaftaran::cases())->mapWithKeys(
                         fn(StatusPendaftaran $status) => [$status->value => $status->getLabel()]
                     )),
+
+                Tables\Filters\SelectFilter::make('fakultas')
+                    ->label('Fakultas')
+                    ->hidden(auth()->user()->hasRole('mahasiswa'))
+                    ->options(
+                        Mahasiswa::query()->distinct()->pluck('fakultas', 'fakultas')->toArray()
+                    )
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when(
+                            $data['value'],
+                            fn(Builder $query, $fakultas): Builder => $query->whereHas(
+                                'mahasiswa',
+                                fn(Builder $query) => $query->where('fakultas', $fakultas)
+                            )
+                        );
+                    }),
+
+                Tables\Filters\SelectFilter::make('prodi')
+                    ->label('Prodi')
+                    ->hidden(auth()->user()->hasRole('mahasiswa'))
+                    ->options(
+                        Mahasiswa::query()->distinct()->pluck('prodi', 'prodi')->toArray()
+                    )
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when(
+                            $data['value'],
+                            fn(Builder $query, $prodi): Builder => $query->whereHas(
+                                'mahasiswa',
+                                fn(Builder $query) => $query->where('prodi', $prodi)
+                            )
+                        );
+                    }),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
-                // ->url(fn($record) => PendaftaranResource::getUrl('view', ['record' => $record])),
-
                 Tables\Actions\EditAction::make()
                     ->label('Update Status')
+                    ->visible(auth()->user()->hasAnyRole(['admin', 'staf']))
                     ->hidden(fn(Pendaftaran $record) => in_array($record->status, [
                         StatusPendaftaran::DRAFT,
                         StatusPendaftaran::PERBAIKAN,
                     ])),
+            ])
+            ->modifyQueryUsing(function (Builder $query) {
+                $user = auth()->user();
 
-                // Tables\Actions\DeleteAction::make(),
-                // Tables\Actions\ForceDeleteAction::make(),
-                // Tables\Actions\RestoreAction::make(),
-            ])
-            ->bulkActions([
-                // Tables\Actions\BulkActionGroup::make([
-                //     Tables\Actions\DeleteBulkAction::make(),
-                //     Tables\Actions\ForceDeleteBulkAction::make(),
-                //     Tables\Actions\RestoreBulkAction::make(),
-                // ]),
-            ])
-            ->modifyQueryUsing(fn(Builder $query) => $query
-                ->where('status', '!=', StatusPendaftaran::DRAFT->value)
-                ->withoutGlobalScopes([
-                    SoftDeletingScope::class,
-                ]))
+                $query
+                    ->where(function ($q) {
+                        $q->where('status', '!=', StatusPendaftaran::DRAFT->value)
+                            ->orWhere('status', StatusPendaftaran::PERBAIKAN->value);
+                    })
+                    ->whereNull('deleted_at')
+                    ->withoutGlobalScopes([
+                        SoftDeletingScope::class,
+                    ]);
+
+                if ($user->hasRole('mahasiswa')) {
+                    $query->where('mahasiswa_id', $user->mahasiswa->id);
+                }
+
+                return $query;
+            })
             ->defaultSort('created_at', 'desc');
-    }
-
-    public function isReadOnly(): bool
-    {
-        return false;
-    }
-
-    public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
-    {
-        return auth()->user()->hasAnyRole(['admin', 'staf']);
     }
 }

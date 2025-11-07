@@ -22,17 +22,8 @@ class BeasiswaExporter extends Exporter
                 ->enabledByDefault(false),
             ExportColumn::make('nama_beasiswa'),
             ExportColumn::make('lembaga_penyelenggara'),
-            ExportColumn::make('besar_beasiswa'),
-            ExportColumn::make('periode'),
             ExportColumn::make('deskripsi'),
-            ExportColumn::make('mahasiswas.nama')
-                ->label('Nama Mahasiswa'),
-            ExportColumn::make('mahasiswas.email')
-                ->label('Email Mahasiswa'),
-            ExportColumn::make('mahasiswas.prodi')
-                ->label('Prodi Mahasiswa'),
-            ExportColumn::make('mahasiswas.fakultas')
-                ->label('fakultas Mahasiswa'),
+
             ExportColumn::make('created_at')
                 ->enabledByDefault(false),
             ExportColumn::make('updated_at')

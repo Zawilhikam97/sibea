@@ -11,6 +11,8 @@ use Filament\Forms\Form;
 use Filament\Infolists\Components;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
+use Filament\Resources\Pages\Page;
+use Filament\Pages\SubNavigationPosition;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,6 +23,8 @@ class PeriodeBeasiswaResource extends Resource
     protected static ?string $model = PeriodeBeasiswa::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+
+    protected static SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
     public static function form(Form $form): Form
     {
@@ -76,11 +80,13 @@ class PeriodeBeasiswaResource extends Resource
                                     ])
                                     ->required(),
                             ])
+                            ->addActionLabel('Tambah persyaratan')
                             ->columns(3)
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Berkas yang Wajib Diupload')
+                Forms\Components\Section::make('Berkas Persyaratan')
+                    ->description('Pilih atau tambahkan berkas yang wajib diupload oleh pendaftar beasiswa.')
                     ->schema([
                         Forms\Components\Select::make('berkasWajibs')
                             ->relationship('berkasWajibs', 'nama_berkas')
@@ -96,7 +102,6 @@ class PeriodeBeasiswaResource extends Resource
                                     ->nullable(),
                             ])
                             ->hiddenLabel()
-                            ->helperText('Pilih berkas-berkas yang wajib diupload oleh pendaftar beasiswa.')
                             ->columnSpanFull(),
                     ]),
             ]);
@@ -127,7 +132,7 @@ class PeriodeBeasiswaResource extends Resource
                             ->columns(2)
                             ->columnSpanFull(),
 
-                        Components\Section::make('Persyaratan Berkas')
+                        Components\Section::make('Berkas Persyaratan')
                             ->schema([
                                 Components\RepeatableEntry::make('berkasWajibs')
                                     ->label('')
@@ -138,9 +143,10 @@ class PeriodeBeasiswaResource extends Resource
                                             ->placeholder('-')
                                             ->label(''),
                                     ])
+                                    ->placeholder('Tidak ada berkas yang wajib diupload')
                                     ->contained(false)
-                                    ->columns(2)
-                                    ->columnSpanFull(),
+                                    ->columnSpanFull()
+                                    ->columns(2),
                             ])
                             ->columnSpanFull(),
                     ])
@@ -160,6 +166,7 @@ class PeriodeBeasiswaResource extends Resource
                                         Components\TextEntry::make('keterangan')
                                             ->label(''),
                                     ])
+                                    ->placeholder('Tidak ada persyaratan pre-check yang diperlukan')
                                     ->columns(3),
                             ]),
 
@@ -175,6 +182,7 @@ class PeriodeBeasiswaResource extends Resource
                                     ->dateTime()
                                     ->visible(fn(PeriodeBeasiswa $record): bool => $record->trashed()),
                             ])
+                            ->hidden(fn(): bool => auth()->user()->hasRole('mahasiswa')),
                     ])
                     ->columnSpan(1),
             ])
@@ -186,11 +194,12 @@ class PeriodeBeasiswaResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('beasiswa.nama_beasiswa')
+                    ->label('Beasiswa')
                     ->sortable()
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->searchable(),
 
                 Tables\Columns\TextColumn::make('nama_periode')
+                    ->label('Periode')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('besar_beasiswa')
@@ -229,9 +238,11 @@ class PeriodeBeasiswaResource extends Resource
             ->filters([
                 Tables\Filters\TrashedFilter::make()
                     ->hidden(fn(): bool => auth()->user()->hasRole('mahasiswa')),
+
                 Tables\Filters\TernaryFilter::make('is_aktif')
                     ->label('Aktif')
                     ->hidden(fn(): bool => auth()->user()->hasRole('mahasiswa')),
+
                 Tables\Filters\Filter::make('created_at')
                     ->form([
                         DatePicker::make('tanggal_mulai_daftar'),
@@ -267,8 +278,21 @@ class PeriodeBeasiswaResource extends Resource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\PendaftaransRelationManager::class,
+            // RelationManagers\PendaftaransRelationManager::class,
         ];
+    }
+
+    public static function getRecordSubNavigation(Page $page): array
+    {
+        if (auth()->user()->hasAnyRole(['admin', 'staf'])) {
+            return $page->generateNavigationItems([
+                Pages\ViewPeriodeBeasiswa::class,
+                Pages\EditPeriodeBeasiswa::class,
+                Pages\ManagePeriodeBeasiswaPendaftaran::class,
+            ]);
+        }
+
+        return $page->generateNavigationItems([]);
     }
 
     public static function getPages(): array
@@ -278,6 +302,7 @@ class PeriodeBeasiswaResource extends Resource
             'create' => Pages\CreatePeriodeBeasiswa::route('/create'),
             'view' => Pages\ViewPeriodeBeasiswa::route('/{record}'),
             'edit' => Pages\EditPeriodeBeasiswa::route('/{record}/edit'),
+            'pendaftaran' => Pages\ManagePeriodeBeasiswaPendaftaran::route('/{record}/pendaftaran'),
         ];
     }
 

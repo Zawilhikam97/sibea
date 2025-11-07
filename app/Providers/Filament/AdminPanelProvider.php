@@ -25,11 +25,16 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->id('admin')
-            ->path('admin')
+            ->path('app')
             ->login(Login::class)
             ->colors([
                 'primary' => Color::Emerald,
             ])
+            ->brandLogo(asset('img/logo-uinsi-light.png'))
+            ->darkModeBrandLogo(asset('img/logo-uinsi-dark.png'))
+            ->brandLogoHeight(function () {
+                return (str_contains(request()->path(), 'login')) ? '10rem' : '3.5rem';
+            })
             ->brandName('SIBEA')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
