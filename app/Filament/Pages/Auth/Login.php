@@ -59,9 +59,9 @@ class Login extends AuthLogin
         }
 
         // Untuk mahasiswa atau user baru, coba login ke API
-        // if (!$existingUser || $existingUser->role_id == UserRole::MAHASISWA_ID) {
-        //     $this->handleMahasiswaLogin($data['nim'], $data['password'], $existingUser);
-        // }
+        if (!$existingUser || $existingUser->role_id == UserRole::MAHASISWA_ID) {
+            $this->handleMahasiswaLogin($data['nim'], $data['password'], $existingUser);
+        }
 
         return [
             'nim' => $data['nim'],
