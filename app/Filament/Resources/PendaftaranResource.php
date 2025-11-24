@@ -150,11 +150,11 @@ class PendaftaranResource extends Resource
                                     ->label('NIM'),
                                 Components\TextEntry::make('mahasiswa.email')
                                     ->label('Email'),
+                                Components\TextEntry::make('mahasiswa.no_hp')
+                                    ->label('Nomor HP'),
                                 Components\TextEntry::make('mahasiswa.jenis_kelamin')
                                     ->label('Jenis Kelamin')
                                     ->placeholder('-'),
-                                Components\TextEntry::make('mahasiswa.no_hp')
-                                    ->label('Nomor HP'),
                                 Components\TextEntry::make('mahasiswa.ttl_gabungan')
                                     ->label('Tempat, Tanggal Lahir'),
                                 Components\TextEntry::make('mahasiswa.prodi')
@@ -165,10 +165,16 @@ class PendaftaranResource extends Resource
                                     ->label('Angkatan'),
                                 Components\TextEntry::make('mahasiswa.semester')
                                     ->label('Semester'),
+                                Components\TextEntry::make('mahasiswa.ip')
+                                    ->label('IP'),
                                 Components\TextEntry::make('mahasiswa.ipk')
                                     ->label('IPK'),
                                 Components\TextEntry::make('mahasiswa.sks')
                                     ->label('Total SKS'),
+                                Components\TextEntry::make('mahasiswa.status_mahasiswa')
+                                    ->label('Status Mahasiswa')
+                                    ->badge()
+                                    ->color('gray'),
                             ])
                             ->collapsible()
                             ->columns(3),

@@ -110,11 +110,11 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
                             ->label('NIM'),
                         Components\TextEntry::make('mahasiswa.email')
                             ->label('Email'),
+                        Components\TextEntry::make('mahasiswa.no_hp')
+                            ->label('Nomor HP'),
                         Components\TextEntry::make('mahasiswa.jenis_kelamin')
                             ->label('Jenis Kelamin')
                             ->placeholder('-'),
-                        Components\TextEntry::make('mahasiswa.no_hp')
-                            ->label('Nomor HP'),
                         Components\TextEntry::make('mahasiswa.ttl_gabungan')
                             ->label('Tempat, Tanggal Lahir'),
                         Components\TextEntry::make('mahasiswa.prodi')
