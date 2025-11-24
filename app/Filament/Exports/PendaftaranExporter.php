@@ -19,6 +19,7 @@ class PendaftaranExporter extends Exporter
                 ->enabledByDefault(false),
 
             ExportColumn::make('status')
+                ->label('Status Pendaftaran')
                 ->formatStateUsing(fn($state) => $state->getLabel()),
 
             ExportColumn::make('periodeBeasiswa.beasiswa.nama_beasiswa')
@@ -39,16 +40,19 @@ class PendaftaranExporter extends Exporter
                 ->label('Program Studi'),
 
             ExportColumn::make('mahasiswa.angkatan')
-                ->label('Angkatan')
-                ->enabledByDefault(false),
+                ->label('Angkatan'),
 
             ExportColumn::make('mahasiswa.semester')
-                ->label('Semester')
-                ->enabledByDefault(false),
+                ->label('Semester'),
 
             ExportColumn::make('mahasiswa.sks')
-                ->label('Satuan Kredit Semester')
-                ->enabledByDefault(false),
+                ->label('Satuan Kredit Semester'),
+
+            ExportColumn::make('ip')
+                ->label('IP'),
+
+            ExportColumn::make('ipk')
+                ->label('IPK'),
 
             ExportColumn::make('mahasiswa.ttl_gabungan')
                 ->label('Tempat Tanggal Lahir')
