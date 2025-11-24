@@ -275,12 +275,12 @@ class MahasiswaResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('ip')
-                    ->label('IPK')
+                    ->label('IP')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('ipk')
-                    ->label('IP')
+                    ->label('IPK')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 

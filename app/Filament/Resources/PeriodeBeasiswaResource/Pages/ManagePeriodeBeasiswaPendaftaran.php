@@ -126,7 +126,7 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
                         Components\TextEntry::make('mahasiswa.semester')
                             ->label('Semester'),
                         Components\TextEntry::make('mahasiswa.ip')
-                            ->label('IPK'),
+                            ->label('IP'),
                         Components\TextEntry::make('mahasiswa.ipk')
                             ->label('IPK'),
                         Components\TextEntry::make('mahasiswa.sks')
