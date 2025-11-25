@@ -17,25 +17,28 @@ class MahasiswaExporter extends Exporter
     public static function getColumns(): array
     {
         return [
-            ExportColumn::make('id')
-                ->label('ID')
-                ->enabledByDefault(false),
             ExportColumn::make('user.nim')
                 ->label('NIM'),
+
             ExportColumn::make('nama'),
-            ExportColumn::make('email'),
-            ExportColumn::make('ttl')
-                ->label('Tempat, Tanggal Lahir'),
+
             ExportColumn::make('jenis_kelamin')
                 ->label('Jenis Kelamin'),
+
+            ExportColumn::make('ttl')
+                ->label('Tempat, Tanggal Lahir'),
+
+            ExportColumn::make('email'),
+
             ExportColumn::make('no_hp')
                 ->label('No Tel'),
-            ExportColumn::make('prodi'),
+
             ExportColumn::make('fakultas'),
+            ExportColumn::make('prodi'),
             ExportColumn::make('angkatan'),
+            ExportColumn::make('semester'),
             ExportColumn::make('sks')
                 ->label('SKS'),
-            ExportColumn::make('semester'),
             ExportColumn::make('ip')
                 ->label('IP'),
             ExportColumn::make('ipk')

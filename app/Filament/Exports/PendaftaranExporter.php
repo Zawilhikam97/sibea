@@ -14,10 +14,6 @@ class PendaftaranExporter extends Exporter
     public static function getColumns(): array
     {
         return [
-            ExportColumn::make('id')
-                ->label('ID')
-                ->enabledByDefault(false),
-
             ExportColumn::make('status')
                 ->label('Status Pendaftaran')
                 ->formatStateUsing(fn($state) => $state->getLabel()),
@@ -32,6 +28,22 @@ class PendaftaranExporter extends Exporter
 
             ExportColumn::make('mahasiswa.nama')
                 ->label('Nama Mahasiswa'),
+
+            ExportColumn::make('mahasiswa.jenis_kelamin')
+                ->label('Jenis Kelamin')
+                ->enabledByDefault(false),
+
+            ExportColumn::make('mahasiswa.ttl_gabungan')
+                ->label('Tempat Tanggal Lahir')
+                ->enabledByDefault(false),
+
+            ExportColumn::make('mahasiswa.no_hp')
+                ->label('No Tel')
+                ->enabledByDefault(false),
+
+            ExportColumn::make('mahasiswa.email')
+                ->label('Email')
+                ->enabledByDefault(false),
 
             ExportColumn::make('mahasiswa.fakultas')
                 ->label('Fakultas'),
@@ -53,22 +65,6 @@ class PendaftaranExporter extends Exporter
 
             ExportColumn::make('ipk')
                 ->label('IPK'),
-
-            ExportColumn::make('mahasiswa.ttl_gabungan')
-                ->label('Tempat Tanggal Lahir')
-                ->enabledByDefault(false),
-
-            ExportColumn::make('mahasiswa.no_hp')
-                ->label('No Tel')
-                ->enabledByDefault(false),
-
-            ExportColumn::make('mahasiswa.email')
-                ->label('Email')
-                ->enabledByDefault(false),
-
-            ExportColumn::make('mahasiswa.jenis_kelamin')
-                ->label('Jenis Kelamin')
-                ->enabledByDefault(false),
 
             ExportColumn::make('note')
                 ->label('Catatan')
