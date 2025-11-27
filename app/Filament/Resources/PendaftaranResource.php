@@ -334,6 +334,7 @@ class PendaftaranResource extends Resource
         $query->with([
             'periodeBeasiswa.beasiswa.kategori',
             'periodeBeasiswa.berkasWajibs',
+            'mahasiswa',
             'mahasiswa.user',
             'berkasPendaftar.berkasWajib'
         ])

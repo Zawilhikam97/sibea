@@ -10,7 +10,7 @@ class Fakultas extends Model
 {
     use HasFactory;
 
-    protected $fillabel = ['nama_fakultas'];
+    protected $fillable = ['nama_fakultas'];
 
     public function prodi(): HasMany
     {
