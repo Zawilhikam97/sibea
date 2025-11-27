@@ -317,7 +317,7 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
                             \App\Jobs\ImportMahasiswaToPeriodeJob::dispatch(
                                 trim($nim),
                                 $periode->id,
-                                $status->value,
+                                $status,
                                 $batchId,
                                 auth()->id()
                             )->onQueue('imports');
