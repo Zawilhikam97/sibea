@@ -30,7 +30,12 @@ class MahasiswaStatsOverview extends BaseWidget
             ->count();
 
         // Menghitung pendaftaran yang sedang verifikasi
-        $verifikasiPending = Pendaftaran::where('status', StatusPendaftaran::VERIFIKASI->value)
+        $verifikasiPending = Pendaftaran::query()
+            ->withoutTrashed() // abaikan pendaftaran yang soft delete
+            ->where('status', StatusPendaftaran::VERIFIKASI->value)
+            ->whereHas('periodeBeasiswa', function ($q) {
+                $q->whereNull('deleted_at'); // periode tidak soft delete
+            })
             ->count();
 
         // Menghitung total pendaftaran yang diterima
