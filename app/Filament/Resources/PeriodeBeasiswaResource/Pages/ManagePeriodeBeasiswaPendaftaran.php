@@ -16,6 +16,7 @@ use Filament\Infolists\Components;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ManageRelatedRecords;
+use Filament\Support\Enums\Alignment;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -81,7 +82,7 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
     {
         return $infolist
             ->schema([
-                Components\Section::make('Berkas Yang Diupload')
+                Components\Section::make('Berkas Pendaftar')
                     ->schema([
                         Components\RepeatableEntry::make('berkasPendaftar')
                             ->schema([
@@ -100,7 +101,31 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
                             ->placeholder('Tidak ada berkas yang diupload')
                             ->grid(5),
                     ])
-                    ->collapsible(),
+                    ->collapsible()
+                    ->footerActions([
+                        Components\Actions\Action::make('downloadAll')
+                            ->label('Download Semua Berkas')
+                            ->icon('heroicon-o-arrow-down-tray')
+                            ->color('success')
+                            ->visible(fn() => auth()->user()->hasAnyRole([
+                                \App\Enums\UserRole::ADMIN,
+                                \App\Enums\UserRole::STAFF,
+                                \App\Enums\UserRole::PENGELOLA
+                            ]))
+                            ->action(function ($record) {
+                                try {
+                                    $service = new \App\Services\PendaftaranDownloadService();
+                                    return $service->downloadAllDocuments($record);
+                                } catch (\Exception $e) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Gagal Download')
+                                        ->body($e->getMessage())
+                                        ->danger()
+                                        ->send();
+                                }
+                            }),
+                    ])
+                    ->footerActionsAlignment(Alignment::Right),
 
                 Components\Section::make('Data Mahasiswa')
                     ->schema([

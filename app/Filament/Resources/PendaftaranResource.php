@@ -15,6 +15,7 @@ use Filament\Forms\Get;
 use Filament\Infolists\Infolist;
 use Filament\Infolists\Components;
 use Filament\Resources\Resource;
+use Filament\Support\Enums\Alignment;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -118,29 +119,51 @@ class PendaftaranResource extends Resource
             ->schema([
                 Components\Group::make()
                     ->schema([
-                        Components\Section::make('Informasi Pendaftaran Beasiswa')
+                        Components\Section::make('Berkas Pendaftar')
                             ->schema([
-                                Components\TextEntry::make('periodeBeasiswa.beasiswa.nama_beasiswa')
-                                    ->label('Nama Beasiswa'),
-                                Components\TextEntry::make('periodeBeasiswa.beasiswa.lembaga_penyelenggara')
-                                    ->label('Lembaga Penyelenggara'),
-                                Components\TextEntry::make('periodeBeasiswa.nama_periode')
-                                    ->label('Periode'),
-                                Components\TextEntry::make('periodeBeasiswa.besar_beasiswa')
-                                    ->label('Besar Beasiswa')
-                                    ->money('idr'),
-                                Components\TextEntry::make('status')
-                                    ->badge()
-                                    ->columnSpanFull(),
-                                Components\TextEntry::make('created_at')
-                                    ->label('Tanggal Mendaftar')
-                                    ->dateTime(),
-                                Components\TextEntry::make('updated_at')
-                                    ->label('Terakhir Diupdate')
-                                    ->dateTime(),
+                                Components\RepeatableEntry::make('berkasPendaftar')
+                                    ->schema([
+                                        Components\TextEntry::make('berkasWajib.nama_berkas')
+                                            ->label('Nama Berkas')
+                                            ->weight('bold'),
+                                        Components\TextEntry::make('file_path')
+                                            ->label('')
+                                            ->icon('heroicon-o-document')
+                                            ->url(fn($record) => $record ? asset('storage/' . $record->file_path) : null)
+                                            ->openUrlInNewTab()
+                                            ->color('primary')
+                                            ->copyable(false)
+                                            ->formatStateUsing(fn() => 'Lihat Berkas')
+                                    ])
+                                    ->hiddenLabel()
+                                    ->placeholder('Tidak ada berkas yang diupload')
+                                    ->grid(4),
                             ])
                             ->collapsible()
-                            ->columns(2),
+                            ->footerActions([
+                                Components\Actions\Action::make('downloadAll')
+                                    ->label('Download Semua Berkas')
+                                    ->icon('heroicon-o-arrow-down-tray')
+                                    ->color('success')
+                                    ->visible(fn() => auth()->user()->hasAnyRole([
+                                        \App\Enums\UserRole::ADMIN,
+                                        \App\Enums\UserRole::STAFF,
+                                        \App\Enums\UserRole::PENGELOLA
+                                    ]))
+                                    ->action(function ($record) {
+                                        try {
+                                            $service = new \App\Services\PendaftaranDownloadService();
+                                            return $service->downloadAllDocuments($record);
+                                        } catch (\Exception $e) {
+                                            \Filament\Notifications\Notification::make()
+                                                ->title('Gagal Download')
+                                                ->body($e->getMessage())
+                                                ->danger()
+                                                ->send();
+                                        }
+                                    }),
+                            ])
+                            ->footerActionsAlignment(Alignment::Right),
 
                         Components\Section::make('Data Mahasiswa')
                             ->schema([
@@ -177,33 +200,40 @@ class PendaftaranResource extends Resource
                                     ->color('gray'),
                             ])
                             ->collapsible()
-                            ->columns(3),
+                            ->columns(2),
 
-                        Components\Section::make('Berkas Yang Diupload')
+                        Components\Section::make('Informasi Beasiswa')
                             ->schema([
-                                Components\RepeatableEntry::make('berkasPendaftar')
-                                    ->schema([
-                                        Components\TextEntry::make('berkasWajib.nama_berkas')
-                                            ->label('Nama Berkas')
-                                            ->weight('bold'),
-                                        Components\TextEntry::make('file_path')
-                                            ->label('')
-                                            ->icon('heroicon-o-document')
-                                            ->url(fn($record) => $record ? asset('storage/' . $record->file_path) : null)
-                                            ->openUrlInNewTab()
-                                            ->color('primary')
-                                            ->copyable(false)
-                                            ->formatStateUsing(fn() => 'Lihat Berkas')
-                                    ])
-                                    ->hiddenLabel()
-                                    ->placeholder('Tidak ada berkas yang diupload')
-                                    ->grid(4),
+                                Components\TextEntry::make('periodeBeasiswa.beasiswa.nama_beasiswa')
+                                    ->label('Nama Beasiswa'),
+                                Components\TextEntry::make('periodeBeasiswa.beasiswa.lembaga_penyelenggara')
+                                    ->label('Lembaga Penyelenggara'),
+                                Components\TextEntry::make('periodeBeasiswa.nama_periode')
+                                    ->label('Periode'),
+                                Components\TextEntry::make('periodeBeasiswa.besar_beasiswa')
+                                    ->label('Besar Beasiswa')
+                                    ->money('idr'),
                             ])
-                            ->collapsible(),
+                            ->collapsible()
+                            ->columns(2),
                     ])
-                    ->columnSpan(fn($record) => $record->note ? 2 : 3),
+                    ->columnSpan(2),
 
-                // Hanya tampilkan catatan jika ada
+                // Aside
+                Components\Section::make('Status')
+                    ->schema([
+                        Components\TextEntry::make('status')
+                                    ->badge()
+                                    ->columnSpanFull(),
+                                Components\TextEntry::make('created_at')
+                                    ->label('Tanggal Mendaftar')
+                                    ->dateTime(),
+                                Components\TextEntry::make('updated_at')
+                                    ->label('Terakhir Diupdate')
+                                    ->dateTime(),
+                    ])
+                    ->columnSpan(1),
+
                 Components\Section::make('Catatan')
                     ->schema([
                         Components\TextEntry::make('note')
