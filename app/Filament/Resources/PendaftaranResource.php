@@ -220,28 +220,30 @@ class PendaftaranResource extends Resource
                     ->columnSpan(2),
 
                 // Aside
-                Components\Section::make('Status')
+                Components\Group::make()
                     ->schema([
-                        Components\TextEntry::make('status')
-                                    ->badge()
-                                    ->columnSpanFull(),
-                                Components\TextEntry::make('created_at')
-                                    ->label('Tanggal Mendaftar')
-                                    ->dateTime(),
-                                Components\TextEntry::make('updated_at')
-                                    ->label('Terakhir Diupdate')
-                                    ->dateTime(),
-                    ])
-                    ->columnSpan(1),
+                        Components\Section::make('Status')
+                            ->schema([
+                                Components\TextEntry::make('status')
+                                            ->badge()
+                                            ->columnSpanFull(),
+                                        Components\TextEntry::make('created_at')
+                                            ->label('Tanggal Mendaftar')
+                                            ->dateTime(),
+                                        Components\TextEntry::make('updated_at')
+                                            ->label('Terakhir Diupdate')
+                                            ->dateTime(),
+                            ]),
 
-                Components\Section::make('Catatan')
-                    ->schema([
-                        Components\TextEntry::make('note')
-                            ->label('')
-                            ->markdown(),
+                        Components\Section::make('Catatan')
+                            ->schema([
+                                Components\TextEntry::make('note')
+                                    ->label('')
+                                    ->markdown(),
+                            ])
+                            ->visible(fn($record) => filled($record->note)),
                     ])
-                    ->columnSpan(1)
-                    ->visible(fn($record) => filled($record->note)),
+                    ->columns(1),
             ])
             ->columns(3);
     }

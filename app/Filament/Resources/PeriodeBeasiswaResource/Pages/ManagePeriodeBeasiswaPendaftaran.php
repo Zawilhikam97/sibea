@@ -275,10 +275,24 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
                     ->color('success')
                     ->form([
                         Forms\Components\Section::make('Impor Mahasiswa ke Periode Ini')
-                            ->description('Masukkan NIM mahasiswa yang ingin didaftarkan ke periode beasiswa ini.')
+                            ->description('Pilih sumber data dan masukkan NIM mahasiswa yang ingin didaftarkan.')
                             ->schema([
+                                Forms\Components\Radio::make('import_source')
+                                    ->label('Sumber Data')
+                                    ->options([
+                                        'database' => 'Database Internal',
+                                        'api' => 'Portal SIAKAD API',
+                                    ])
+                                    ->default('database')
+                                    ->reactive()
+                                    ->required()
+                                    ->descriptions([
+                                        'database' => 'Gunakan data mahasiswa yang sudah ada di database',
+                                        'api' => 'Ambil dari Portal SIAKAD dan buat user baru jika belum ada',
+                                    ]),
+
                                 Forms\Components\Radio::make('import_type')
-                                    ->label('Metode Impor')
+                                    ->label('Metode Input')
                                     ->options([
                                         'paste' => 'Paste NIM (Max 50)',
                                         'file' => 'Upload File (Unlimited)',
@@ -307,9 +321,19 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
                                     ->requiredIf('import_type', 'file'),
 
                                 Forms\Components\Select::make('status_pendaftaran')
+                                    ->label('Status Pendaftaran')
                                     ->options(collect(StatusPendaftaran::cases())->mapWithKeys(
                                         fn(StatusPendaftaran $status) => [$status->value => $status->getLabel()]
-                                    )),
+                                    ))
+                                    ->default(StatusPendaftaran::DITERIMA->value)
+                                    ->required(),
+
+                                Forms\Components\Textarea::make('note')
+                                    ->label('Catatan')
+                                    ->placeholder('Tambahkan catatan untuk semua mahasiswa yang diimpor (opsional)')
+                                    ->rows(3)
+                                    ->helperText('Catatan ini akan ditambahkan ke semua pendaftaran yang berhasil diimpor')
+                                    ->maxLength(500),
                             ])
                     ])
                     ->action(function (array $data) {
@@ -334,23 +358,41 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
                             return;
                         }
 
-                        // Dispatch batch job
+                        // Dispatch batch job based on import source
                         $batchId = Str::uuid();
                         $status = $data['status_pendaftaran'];
+                        $importSource = $data['import_source'];
+                        $note = $data['note'] ?? null;
 
                         foreach ($nims as $nim) {
-                            \App\Jobs\ImportMahasiswaToPeriodeJob::dispatch(
-                                trim($nim),
-                                $periode->id,
-                                $status,
-                                $batchId,
-                                auth()->id()
-                            )->onQueue('imports');
+                            if ($importSource === 'database') {
+                                // Use new job for database import
+                                \App\Jobs\AttachMahasiswaToPeriodeJob::dispatch(
+                                    trim($nim),
+                                    $periode->id,
+                                    $status,
+                                    $batchId,
+                                    auth()->id(),
+                                    $note
+                                )->onQueue('imports');
+                            } else {
+                                // Use existing job for API import
+                                \App\Jobs\ImportMahasiswaToPeriodeJob::dispatch(
+                                    trim($nim),
+                                    $periode->id,
+                                    $status,
+                                    $batchId,
+                                    auth()->id(),
+                                    $note
+                                )->onQueue('imports');
+                            }
                         }
 
                         Notification::make()
                             ->title('Impor Dijadwalkan')
-                            ->body(count($nims) . ' mahasiswa sedang diproses. Cek halaman ini dalam beberapa saat.')
+                            ->body(count($nims) . ' mahasiswa sedang diproses dari ' . 
+                                   ($importSource === 'database' ? 'database internal' : 'Portal SIAKAD API') . 
+                                   '. Cek halaman ini dalam beberapa saat.')
                             ->success()
                             ->send();
                     })

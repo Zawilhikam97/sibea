@@ -5,8 +5,6 @@ namespace App\Jobs;
 use App\Models\Mahasiswa;
 use App\Models\Pendaftaran;
 use App\Models\PeriodeBeasiswa;
-use App\Models\User;
-use App\Services\ApiService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -15,7 +13,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ImportMahasiswaToPeriodeJob implements ShouldQueue
+class AttachMahasiswaToPeriodeJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -32,7 +30,7 @@ class ImportMahasiswaToPeriodeJob implements ShouldQueue
         public ?string $note = null
     ) {}
 
-    public function handle(ApiService $apiService): void
+    public function handle(): void
     {
         try {
             // Log import attempt
@@ -46,51 +44,19 @@ class ImportMahasiswaToPeriodeJob implements ShouldQueue
                 'updated_at' => now(),
             ]);
 
-            // Check if user exists
-            $user = User::where('nim', $this->nim)->first();
+            Log::info('Attaching mahasiswa to periode from database', [
+                'nim' => $this->nim,
+                'periode_id' => $this->periodeBeasiswaId,
+                'batch_id' => $this->batchId,
+            ]);
 
-            if (!$user) {
-                // Fetch from API
-                $biodata = $apiService->getBiodata($this->nim);
-
-                if (!$biodata) {
-                    $this->updateLog($importLog, 'failed', 'Data tidak ditemukan di Portal SIAKAD');
-                    return;
-                }
-
-                // Create user & mahasiswa
-                DB::transaction(function () use ($biodata, &$user) {
-                    $user = User::create([
-                        'name' => $biodata['nama'],
-                        'nim' => $this->nim,
-                        'password' => bcrypt('password'),
-                        'role_id' => 3,
-                    ]);
-
-                    Mahasiswa::create([
-                        'user_id' => $user->id,
-                        'nama' => $biodata['nama'],
-                        'email' => $biodata['email'],
-                        'tempat_lahir' => $biodata['tempat_lahir'],
-                        'tanggal_lahir' => $biodata['tanggal_lahir'],
-                        'no_hp' => $biodata['no_hp'],
-                        'prodi' => $biodata['program_studi'],
-                        'fakultas' => $biodata['fakultas'],
-                        'angkatan' => $biodata['angkatan'],
-                        'semester' => $biodata['semester'] ?? 0,
-                        'sks' => $biodata['sks'] == '' ? 0 : $biodata['sks'],
-                        'ip' => $biodata['ip'] == '' ? 0 : $biodata['ip'],
-                        'ipk' => $biodata['ipk'] == '' ? 0 : $biodata['ipk'],
-                        'status_mahasiswa' => $biodata['status_mahasiswa'],
-                    ]);
-                });
-            }
-
-            // Get mahasiswa
-            $mahasiswa = $user->mahasiswa;
+            // Get mahasiswa from database with eager loading (prevent N+1)
+            $mahasiswa = Mahasiswa::with('user')
+                ->whereHas('user', fn($q) => $q->where('nim', $this->nim))
+                ->first();
 
             if (!$mahasiswa) {
-                $this->updateLog($importLog, 'failed', 'User ditemukan tapi bukan mahasiswa');
+                $this->updateLog($importLog, 'failed', 'Mahasiswa dengan NIM ' . $this->nim . ' tidak ditemukan di database');
                 return;
             }
 
@@ -122,11 +88,18 @@ class ImportMahasiswaToPeriodeJob implements ShouldQueue
             ]);
 
             $this->updateLog($importLog, 'success', $mahasiswa->nama);
+
+            Log::info('Successfully attached mahasiswa to periode', [
+                'nim' => $this->nim,
+                'mahasiswa_id' => $mahasiswa->id,
+                'periode_id' => $this->periodeBeasiswaId,
+            ]);
         } catch (\Exception $e) {
-            Log::error('Import mahasiswa to periode failed', [
+            Log::error('Failed to attach mahasiswa to periode', [
                 'nim' => $this->nim,
                 'periode_id' => $this->periodeBeasiswaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             $this->updateLog($importLog ?? null, 'failed', $e->getMessage());
