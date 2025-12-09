@@ -14,6 +14,7 @@ use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Infolists\Infolist;
 use Filament\Infolists\Components;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Support\Enums\Alignment;
 use Filament\Tables;
@@ -337,6 +338,223 @@ class PendaftaranResource extends Resource
                 Tables\Actions\ExportBulkAction::make()
                     ->exporter(PendaftaranExporter::class)
                     ->visible(fn(): bool => auth()->user()->hasAnyRole([UserRole::ADMIN, UserRole::STAFF])),
+
+                Tables\Actions\BulkAction::make('updateStatus')
+                    ->label('Update Status')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(auth()->user()->hasAnyRole([UserRole::ADMIN, UserRole::STAFF]))
+                    ->form([
+                        Forms\Components\Select::make('status')
+                            ->label('Status Baru')
+                            ->options(
+                                collect(StatusPendaftaran::cases())
+                                    ->filter(fn(StatusPendaftaran $status) => !in_array($status, [
+                                        StatusPendaftaran::DRAFT,
+                                    ]))
+                                    ->mapWithKeys(fn(StatusPendaftaran $status) => [
+                                        $status->value => $status->getLabel()
+                                    ])
+                            )
+                            ->required(),
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan')
+                            ->placeholder('Tambahkan catatan (opsional)')
+                            ->rows(3),
+                    ])
+                    ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                        $updated = 0;
+                        $skipped = 0;
+
+                        foreach ($records as $record) {
+                            $nim = $record->mahasiswa?->user?->nim ?? '-';
+                            $periodeId = $record->periode_beasiswa_id;
+                            
+                            // Skip DRAFT or PERBAIKAN status
+                            if (in_array($record->status, [StatusPendaftaran::DRAFT, StatusPendaftaran::PERBAIKAN])) {
+                                \App\Models\StatusHistory::logSkipped(
+                                    $record->id,
+                                    auth()->id(),
+                                    $periodeId,
+                                    $nim,
+                                    $record->status->value ?? $record->status,
+                                    "Status '" . ($record->status->getLabel() ?? $record->status) . "' tidak dapat diubah"
+                                );
+                                $skipped++;
+                                continue;
+                            }
+
+                            $oldStatus = $record->status->value ?? $record->status;
+
+                            // Log status change
+                            \App\Models\StatusHistory::logChange(
+                                $record->id,
+                                auth()->id(),
+                                $oldStatus,
+                                $data['status'],
+                                $data['note'] ?? null,
+                                $periodeId
+                            );
+
+                            // Update status
+                            $record->update([
+                                'status' => $data['status'],
+                                'note' => $data['note'] ?? $record->note,
+                            ]);
+
+                            $updated++;
+                        }
+
+                        Notification::make()
+                            ->title('Status Berhasil Diupdate')
+                            ->body("{$updated} pendaftar diupdate" . ($skipped > 0 ? ", {$skipped} dilewati (status draft/perbaikan)" : ""))
+                            ->success()
+                            ->send();
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Update Status Pendaftar')
+                    ->modalDescription('Ubah status untuk semua pendaftar yang dipilih.'),
+            ])
+            ->headerActions([
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('bulkUpdateByNim')
+                        ->label('Bulk Update Status')
+                        ->icon('heroicon-o-pencil-square')
+                        ->color('warning')
+                        ->visible(auth()->user()->hasAnyRole([UserRole::ADMIN, UserRole::STAFF]))
+                        ->form([
+                            Forms\Components\Section::make('Update Status Pendaftar')
+                                ->description('Masukkan NIM pendaftar yang ingin diupdate statusnya.')
+                                ->schema([
+                                    Forms\Components\Select::make('periode_beasiswa_id')
+                                        ->label('Periode Beasiswa')
+                                        ->options(PeriodeBeasiswa::query()->pluck('nama_periode', 'id'))
+                                        ->required()
+                                        ->searchable(),
+
+                                    Forms\Components\Textarea::make('nims')
+                                        ->label('Daftar NIM')
+                                        ->placeholder("2011102441001\n2011102441002\n2011102441003")
+                                        ->rows(8)
+                                        ->required()
+                                        ->helperText('Pisahkan setiap NIM dengan enter/baris baru'),
+
+                                    Forms\Components\Select::make('status')
+                                        ->label('Status Baru')
+                                        ->options(
+                                            collect(StatusPendaftaran::cases())
+                                                ->filter(fn(StatusPendaftaran $status) => !in_array($status, [
+                                                    StatusPendaftaran::DRAFT,
+                                                ]))
+                                                ->mapWithKeys(fn(StatusPendaftaran $status) => [
+                                                    $status->value => $status->getLabel()
+                                                ])
+                                        )
+                                        ->required(),
+
+                                    Forms\Components\Textarea::make('note')
+                                        ->label('Catatan')
+                                        ->placeholder('Tambahkan catatan (opsional)')
+                                        ->rows(3),
+                                ])
+                        ])
+                        ->action(function (array $data) {
+                            $periodeId = $data['periode_beasiswa_id'];
+                            $nims = array_filter(array_map('trim', explode("\n", $data['nims'])));
+
+                            $updated = 0;
+                            $skipped = 0;
+                            $notFound = 0;
+
+                            foreach ($nims as $nim) {
+                                // Find pendaftaran by NIM in selected periode
+                                $pendaftaran = Pendaftaran::query()
+                                    ->where('periode_beasiswa_id', $periodeId)
+                                    ->whereHas('mahasiswa.user', function ($q) use ($nim) {
+                                        $q->where('nim', $nim);
+                                    })
+                                    ->first();
+
+                                if (!$pendaftaran) {
+                                    // Log failed (NIM not found)
+                                    \App\Models\StatusHistory::logFailed(
+                                        auth()->id(),
+                                        $periodeId,
+                                        $nim,
+                                        'NIM tidak terdaftar di periode ini',
+                                        $data['status']
+                                    );
+                                    $notFound++;
+                                    continue;
+                                }
+
+                                // Skip DRAFT or PERBAIKAN status
+                                if (in_array($pendaftaran->status, [StatusPendaftaran::DRAFT, StatusPendaftaran::PERBAIKAN])) {
+                                    \App\Models\StatusHistory::logSkipped(
+                                        $pendaftaran->id,
+                                        auth()->id(),
+                                        $periodeId,
+                                        $nim,
+                                        $pendaftaran->status->value ?? $pendaftaran->status,
+                                        "Status '" . ($pendaftaran->status->getLabel() ?? $pendaftaran->status) . "' tidak dapat diubah"
+                                    );
+                                    $skipped++;
+                                    continue;
+                                }
+
+                                $oldStatus = $pendaftaran->status->value ?? $pendaftaran->status;
+
+                                // Log status change
+                                \App\Models\StatusHistory::logChange(
+                                    $pendaftaran->id,
+                                    auth()->id(),
+                                    $oldStatus,
+                                    $data['status'],
+                                    $data['note'] ?? null,
+                                    $periodeId
+                                );
+
+                                // Update status
+                                $pendaftaran->update([
+                                    'status' => $data['status'],
+                                    'note' => $data['note'] ?? $pendaftaran->note,
+                                ]);
+
+                                $updated++;
+                            }
+
+                            $message = "{$updated} pendaftar berhasil diupdate.";
+                            if ($skipped > 0) {
+                                $message .= " {$skipped} dilewati (status draft/perbaikan).";
+                            }
+                            if ($notFound > 0) {
+                                $message .= " {$notFound} NIM tidak ditemukan (tercatat di log).";
+                            }
+
+                            Notification::make()
+                                ->title('Bulk Update Selesai')
+                                ->body($message)
+                                ->success()
+                                ->send();
+                        })
+                        ->modalWidth('lg'),
+
+                    Tables\Actions\Action::make('viewStatusHistory')
+                        ->label('Riwayat Status')
+                        ->icon('heroicon-o-clock')
+                        ->color('gray')
+                        ->modalWidth('5xl')
+                        ->modalHeading('Riwayat Perubahan Status')
+                        ->modalDescription('Semua riwayat perubahan status pendaftar')
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Tutup')
+                        ->modalContent(fn () => view('filament.modals.status-history-table', [
+                            'periodeId' => null, // Show all periods
+                        ])),
+                ])
+                ->icon('heroicon-o-bars-3')
+                ->color('warning')
+                ->visible(auth()->user()->hasAnyRole([UserRole::ADMIN, UserRole::STAFF])),
             ])
             ->defaultSort('created_at', 'desc');
     }
