@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\StatusPendaftaran;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -30,6 +31,11 @@ class Pendaftaran extends Model
     public function berkasPendaftar()
     {
         return $this->hasMany(PendaftaranBerkas::class);
+    }
+
+    public function statusHistories()
+    {
+        return $this->hasMany(StatusHistory::class)->latest();
     }
 
     public function canEdit(): bool

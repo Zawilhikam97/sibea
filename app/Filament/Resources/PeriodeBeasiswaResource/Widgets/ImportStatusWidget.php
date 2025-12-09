@@ -72,7 +72,6 @@ class ImportStatusWidget extends TableWidget
                         'skipped' => 'skipped',
                         'processing' => 'processing',
                     ]),
-            ])
-            ->poll();
+            ]);
     }
 }
