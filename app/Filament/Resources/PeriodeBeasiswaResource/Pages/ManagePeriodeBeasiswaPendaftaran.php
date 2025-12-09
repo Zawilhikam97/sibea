@@ -342,269 +342,269 @@ class ManagePeriodeBeasiswaPendaftaran extends ManageRelatedRecords
                     ->modalDescription('Ubah status untuk semua pendaftar yang dipilih.'),
             ])
             ->headerActions([
-                Tables\Actions\ExportAction::make()
-                    ->exporter(PendaftaranExporter::class)
-                    ->label('Ekspor Pendaftar')
-                    ->icon('heroicon-o-arrow-up-tray'),
-
-                Tables\Actions\Action::make('bulkImport')
-                    ->label('Impor Mahasiswa')
-                    ->icon('heroicon-o-user-plus')
-                    ->color('success')
+                Tables\Actions\Action::make('bulkUpdateByNim')
+                    ->label('Bulk Update Status')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('warning')
+                    ->visible(auth()->user()->hasAnyRole([UserRole::ADMIN, UserRole::STAFF, UserRole::PENGELOLA]))
                     ->form([
-                        Forms\Components\Section::make('Impor Mahasiswa ke Periode Ini')
-                            ->description('Pilih sumber data dan masukkan NIM mahasiswa yang ingin didaftarkan.')
+                        Forms\Components\Section::make('Update Status Pendaftar')
+                            ->description('Masukkan NIM pendaftar yang ingin diupdate statusnya.')
                             ->schema([
-                                Forms\Components\Radio::make('import_source')
-                                    ->label('Sumber Data')
-                                    ->options([
-                                        'database' => 'Database Internal',
-                                        'api' => 'Portal SIAKAD API',
-                                    ])
-                                    ->default('database')
-                                    ->reactive()
-                                    ->required()
-                                    ->descriptions([
-                                        'database' => 'Gunakan data mahasiswa yang sudah ada di database',
-                                        'api' => 'Ambil dari Portal SIAKAD dan buat user baru jika belum ada',
-                                    ]),
-
-                                Forms\Components\Radio::make('import_type')
-                                    ->label('Metode Input')
-                                    ->options([
-                                        'paste' => 'Paste NIM (Max 50)',
-                                        'file' => 'Upload File (Unlimited)',
-                                    ])
-                                    ->default('paste')
-                                    ->reactive()
-                                    ->required(),
-
                                 Forms\Components\Textarea::make('nims')
                                     ->label('Daftar NIM')
                                     ->placeholder("2011102441001\n2011102441002\n2011102441003")
-                                    ->rows(10)
-                                    ->helperText('Pisahkan setiap NIM dengan enter/baris baru')
-                                    ->visible(fn(Forms\Get $get) => $get('import_type') === 'paste')
-                                    ->requiredIf('import_type', 'paste'),
+                                    ->rows(8)
+                                    ->required()
+                                    ->helperText('Pisahkan setiap NIM dengan enter/baris baru'),
 
-                                Forms\Components\FileUpload::make('file')
-                                    ->label('Upload File Excel/CSV')
-                                    ->acceptedFileTypes([
-                                        'text/csv',
-                                        'application/vnd.ms-excel',
-                                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                                    ])
-                                    ->helperText('File harus berisi kolom "nim"')
-                                    ->visible(fn(Forms\Get $get) => $get('import_type') === 'file')
-                                    ->requiredIf('import_type', 'file'),
-
-                                Forms\Components\Select::make('status_pendaftaran')
-                                    ->label('Status Pendaftaran')
-                                    ->options(collect(StatusPendaftaran::cases())->mapWithKeys(
-                                        fn(StatusPendaftaran $status) => [$status->value => $status->getLabel()]
-                                    ))
-                                    ->default(StatusPendaftaran::DITERIMA->value)
+                                Forms\Components\Select::make('status')
+                                    ->label('Status Baru')
+                                    ->options(
+                                        collect(StatusPendaftaran::cases())
+                                            ->filter(fn(StatusPendaftaran $status) => !in_array($status, [
+                                                StatusPendaftaran::DRAFT,
+                                            ]))
+                                            ->mapWithKeys(fn(StatusPendaftaran $status) => [
+                                                $status->value => $status->getLabel()
+                                            ])
+                                    )
                                     ->required(),
 
                                 Forms\Components\Textarea::make('note')
                                     ->label('Catatan')
-                                    ->placeholder('Tambahkan catatan untuk semua mahasiswa yang diimpor (opsional)')
-                                    ->rows(3)
-                                    ->helperText('Catatan ini akan ditambahkan ke semua pendaftaran yang berhasil diimpor')
-                                    ->maxLength(500),
+                                    ->placeholder('Tambahkan catatan (opsional)')
+                                    ->rows(3),
                             ])
                     ])
                     ->action(function (array $data) {
                         $periode = $this->getOwnerRecord();
+                        $nims = array_filter(array_map('trim', explode("\n", $data['nims'])));
 
-                        // Extract NIMs
-                        $nims = [];
-                        if ($data['import_type'] === 'paste') {
-                            $nims = array_filter(array_map('trim', explode("\n", $data['nims'])));
-                        } else {
-                            // Parse file
-                            $filePath = storage_path('app/public/' . $data['file']);
-                            $nims = $this->parseNimFile($filePath);
-                        }
-
-                        if (count($nims) > 50 && $data['import_type'] === 'paste') {
-                            Notification::make()
-                                ->title('Terlalu Banyak')
-                                ->body('Maksimal 50 NIM untuk metode paste. Gunakan upload file.')
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        // Dispatch batch job based on import source
-                        $batchId = Str::uuid();
-                        $status = $data['status_pendaftaran'];
-                        $importSource = $data['import_source'];
-                        $note = $data['note'] ?? null;
+                        $updated = 0;
+                        $skipped = 0;
+                        $notFound = 0;
 
                         foreach ($nims as $nim) {
-                            if ($importSource === 'database') {
-                                // Use new job for database import
-                                \App\Jobs\AttachMahasiswaToPeriodeJob::dispatch(
-                                    trim($nim),
-                                    $periode->id,
-                                    $status,
-                                    $batchId,
+                            // Find pendaftaran by NIM in current periode
+                            $pendaftaran = Pendaftaran::query()
+                                ->where('periode_beasiswa_id', $periode->id)
+                                ->whereHas('mahasiswa.user', function ($q) use ($nim) {
+                                    $q->where('nim', $nim);
+                                })
+                                ->first();
+
+                            if (!$pendaftaran) {
+                                // Log failed (NIM not found)
+                                \App\Models\StatusHistory::logFailed(
                                     auth()->id(),
-                                    $note
-                                )->onQueue('imports');
-                            } else {
-                                // Use existing job for API import
-                                \App\Jobs\ImportMahasiswaToPeriodeJob::dispatch(
-                                    trim($nim),
                                     $periode->id,
-                                    $status,
-                                    $batchId,
-                                    auth()->id(),
-                                    $note
-                                )->onQueue('imports');
+                                    $nim,
+                                    'NIM tidak terdaftar di periode ini',
+                                    $data['status']
+                                );
+                                $notFound++;
+                                continue;
                             }
+
+                            // Skip DRAFT or PERBAIKAN status
+                            if (in_array($pendaftaran->status, [StatusPendaftaran::DRAFT, StatusPendaftaran::PERBAIKAN])) {
+                                \App\Models\StatusHistory::logSkipped(
+                                    $pendaftaran->id,
+                                    auth()->id(),
+                                    $periode->id,
+                                    $nim,
+                                    $pendaftaran->status->value ?? $pendaftaran->status,
+                                    "Status '" . ($pendaftaran->status->getLabel() ?? $pendaftaran->status) . "' tidak dapat diubah"
+                                );
+                                $skipped++;
+                                continue;
+                            }
+
+                            $oldStatus = $pendaftaran->status->value ?? $pendaftaran->status;
+
+                            // Log status change
+                            \App\Models\StatusHistory::logChange(
+                                $pendaftaran->id,
+                                auth()->id(),
+                                $oldStatus,
+                                $data['status'],
+                                $data['note'] ?? null,
+                                $periode->id
+                            );
+
+                            // Update status
+                            $pendaftaran->update([
+                                'status' => $data['status'],
+                                'note' => $data['note'] ?? $pendaftaran->note,
+                            ]);
+
+                            $updated++;
+                        }
+
+                        $message = "{$updated} pendaftar berhasil diupdate.";
+                        if ($skipped > 0) {
+                            $message .= " {$skipped} dilewati (status draft/perbaikan).";
+                        }
+                        if ($notFound > 0) {
+                            $message .= " {$notFound} NIM tidak ditemukan (tercatat di log).";
                         }
 
                         Notification::make()
-                            ->title('Impor Dijadwalkan')
-                            ->body(count($nims) . ' mahasiswa sedang diproses dari ' . 
-                                   ($importSource === 'database' ? 'database internal' : 'Portal SIAKAD API') . 
-                                   '. Cek halaman ini dalam beberapa saat.')
+                            ->title('Bulk Update Selesai')
+                            ->body($message)
                             ->success()
                             ->send();
                     })
-                    ->modalWidth('2xl'),
+                    ->modalWidth('lg'),
+
+                Tables\Actions\Action::make('viewStatusHistory')
+                    ->label('Riwayat Status')
+                    ->icon('heroicon-o-clock')
+                    ->color('gray')
+                    ->modalWidth('5xl')
+                    ->modalHeading('Riwayat Perubahan Status')
+                    ->modalDescription('Semua riwayat perubahan status pendaftar pada periode ini')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup')
+                    ->modalContent(fn () => view('filament.modals.status-history-table', [
+                        'periodeId' => $this->getOwnerRecord()->id,
+                    ])),
 
                 Tables\Actions\ActionGroup::make([
-                    Tables\Actions\Action::make('bulkUpdateByNim')
-                        ->label('Bulk Update Status')
-                        ->icon('heroicon-o-pencil-square')
-                        ->color('warning')
-                        ->visible(auth()->user()->hasAnyRole([UserRole::ADMIN, UserRole::STAFF, UserRole::PENGELOLA]))
+                    Tables\Actions\ExportAction::make()
+                        ->exporter(PendaftaranExporter::class)
+                        ->label('Ekspor Pendaftar')
+                        ->icon('heroicon-o-arrow-up-tray'),
+
+                    Tables\Actions\Action::make('bulkImport')
+                        ->label('Impor Mahasiswa')
+                        ->icon('heroicon-o-user-plus')
+                        ->color('success')
                         ->form([
-                            Forms\Components\Section::make('Update Status Pendaftar')
-                                ->description('Masukkan NIM pendaftar yang ingin diupdate statusnya.')
+                            Forms\Components\Section::make('Impor Mahasiswa ke Periode Ini')
+                                ->description('Pilih sumber data dan masukkan NIM mahasiswa yang ingin didaftarkan.')
                                 ->schema([
+                                    Forms\Components\Radio::make('import_source')
+                                        ->label('Sumber Data')
+                                        ->options([
+                                            'database' => 'Database Internal',
+                                            'api' => 'Portal SIAKAD API',
+                                        ])
+                                        ->default('database')
+                                        ->reactive()
+                                        ->required()
+                                        ->descriptions([
+                                            'database' => 'Gunakan data mahasiswa yang sudah ada di database',
+                                            'api' => 'Ambil dari Portal SIAKAD dan buat user baru jika belum ada',
+                                        ]),
+
+                                    Forms\Components\Radio::make('import_type')
+                                        ->label('Metode Input')
+                                        ->options([
+                                            'paste' => 'Paste NIM (Max 50)',
+                                            'file' => 'Upload File (Unlimited)',
+                                        ])
+                                        ->default('paste')
+                                        ->reactive()
+                                        ->required(),
+
                                     Forms\Components\Textarea::make('nims')
                                         ->label('Daftar NIM')
                                         ->placeholder("2011102441001\n2011102441002\n2011102441003")
-                                        ->rows(8)
-                                        ->required()
-                                        ->helperText('Pisahkan setiap NIM dengan enter/baris baru'),
+                                        ->rows(10)
+                                        ->helperText('Pisahkan setiap NIM dengan enter/baris baru')
+                                        ->visible(fn(Forms\Get $get) => $get('import_type') === 'paste')
+                                        ->requiredIf('import_type', 'paste'),
 
-                                    Forms\Components\Select::make('status')
-                                        ->label('Status Baru')
-                                        ->options(
-                                            collect(StatusPendaftaran::cases())
-                                                ->filter(fn(StatusPendaftaran $status) => !in_array($status, [
-                                                    StatusPendaftaran::DRAFT,
-                                                ]))
-                                                ->mapWithKeys(fn(StatusPendaftaran $status) => [
-                                                    $status->value => $status->getLabel()
-                                                ])
-                                        )
+                                    Forms\Components\FileUpload::make('file')
+                                        ->label('Upload File Excel/CSV')
+                                        ->acceptedFileTypes([
+                                            'text/csv',
+                                            'application/vnd.ms-excel',
+                                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                                        ])
+                                        ->helperText('File harus berisi kolom "nim"')
+                                        ->visible(fn(Forms\Get $get) => $get('import_type') === 'file')
+                                        ->requiredIf('import_type', 'file'),
+
+                                    Forms\Components\Select::make('status_pendaftaran')
+                                        ->label('Status Pendaftaran')
+                                        ->options(collect(StatusPendaftaran::cases())->mapWithKeys(
+                                            fn(StatusPendaftaran $status) => [$status->value => $status->getLabel()]
+                                        ))
+                                        ->default(StatusPendaftaran::DITERIMA->value)
                                         ->required(),
 
                                     Forms\Components\Textarea::make('note')
                                         ->label('Catatan')
-                                        ->placeholder('Tambahkan catatan (opsional)')
-                                        ->rows(3),
+                                        ->placeholder('Tambahkan catatan untuk semua mahasiswa yang diimpor (opsional)')
+                                        ->rows(3)
+                                        ->helperText('Catatan ini akan ditambahkan ke semua pendaftaran yang berhasil diimpor')
+                                        ->maxLength(500),
                                 ])
                         ])
                         ->action(function (array $data) {
                             $periode = $this->getOwnerRecord();
-                            $nims = array_filter(array_map('trim', explode("\n", $data['nims'])));
 
-                            $updated = 0;
-                            $skipped = 0;
-                            $notFound = 0;
+                            // Extract NIMs
+                            $nims = [];
+                            if ($data['import_type'] === 'paste') {
+                                $nims = array_filter(array_map('trim', explode("\n", $data['nims'])));
+                            } else {
+                                // Parse file
+                                $filePath = storage_path('app/public/' . $data['file']);
+                                $nims = $this->parseNimFile($filePath);
+                            }
+
+                            if (count($nims) > 50 && $data['import_type'] === 'paste') {
+                                Notification::make()
+                                    ->title('Terlalu Banyak')
+                                    ->body('Maksimal 50 NIM untuk metode paste. Gunakan upload file.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            // Dispatch batch job based on import source
+                            $batchId = Str::uuid();
+                            $status = $data['status_pendaftaran'];
+                            $importSource = $data['import_source'];
+                            $note = $data['note'] ?? null;
 
                             foreach ($nims as $nim) {
-                                // Find pendaftaran by NIM in current periode
-                                $pendaftaran = Pendaftaran::query()
-                                    ->where('periode_beasiswa_id', $periode->id)
-                                    ->whereHas('mahasiswa.user', function ($q) use ($nim) {
-                                        $q->where('nim', $nim);
-                                    })
-                                    ->first();
-
-                                if (!$pendaftaran) {
-                                    // Log failed (NIM not found)
-                                    \App\Models\StatusHistory::logFailed(
-                                        auth()->id(),
+                                if ($importSource === 'database') {
+                                    // Use new job for database import
+                                    \App\Jobs\AttachMahasiswaToPeriodeJob::dispatch(
+                                        trim($nim),
                                         $periode->id,
-                                        $nim,
-                                        'NIM tidak terdaftar di periode ini',
-                                        $data['status']
-                                    );
-                                    $notFound++;
-                                    continue;
-                                }
-
-                                // Skip DRAFT or PERBAIKAN status
-                                if (in_array($pendaftaran->status, [StatusPendaftaran::DRAFT, StatusPendaftaran::PERBAIKAN])) {
-                                    \App\Models\StatusHistory::logSkipped(
-                                        $pendaftaran->id,
+                                        $status,
+                                        $batchId,
                                         auth()->id(),
+                                        $note
+                                    )->onQueue('imports');
+                                } else {
+                                    // Use existing job for API import
+                                    \App\Jobs\ImportMahasiswaToPeriodeJob::dispatch(
+                                        trim($nim),
                                         $periode->id,
-                                        $nim,
-                                        $pendaftaran->status->value ?? $pendaftaran->status,
-                                        "Status '" . ($pendaftaran->status->getLabel() ?? $pendaftaran->status) . "' tidak dapat diubah"
-                                    );
-                                    $skipped++;
-                                    continue;
+                                        $status,
+                                        $batchId,
+                                        auth()->id(),
+                                        $note
+                                    )->onQueue('imports');
                                 }
-
-                                $oldStatus = $pendaftaran->status->value ?? $pendaftaran->status;
-
-                                // Log status change
-                                \App\Models\StatusHistory::logChange(
-                                    $pendaftaran->id,
-                                    auth()->id(),
-                                    $oldStatus,
-                                    $data['status'],
-                                    $data['note'] ?? null,
-                                    $periode->id
-                                );
-
-                                // Update status
-                                $pendaftaran->update([
-                                    'status' => $data['status'],
-                                    'note' => $data['note'] ?? $pendaftaran->note,
-                                ]);
-
-                                $updated++;
-                            }
-
-                            $message = "{$updated} pendaftar berhasil diupdate.";
-                            if ($skipped > 0) {
-                                $message .= " {$skipped} dilewati (status draft/perbaikan).";
-                            }
-                            if ($notFound > 0) {
-                                $message .= " {$notFound} NIM tidak ditemukan (tercatat di log).";
                             }
 
                             Notification::make()
-                                ->title('Bulk Update Selesai')
-                                ->body($message)
+                                ->title('Impor Dijadwalkan')
+                                ->body(count($nims) . ' mahasiswa sedang diproses dari ' . 
+                                    ($importSource === 'database' ? 'database internal' : 'Portal SIAKAD API') . 
+                                    '. Cek halaman ini dalam beberapa saat.')
                                 ->success()
                                 ->send();
                         })
-                        ->modalWidth('lg'),
-
-                    Tables\Actions\Action::make('viewStatusHistory')
-                        ->label('Riwayat Status')
-                        ->icon('heroicon-o-clock')
-                        ->color('gray')
-                        ->modalWidth('5xl')
-                        ->modalHeading('Riwayat Perubahan Status')
-                        ->modalDescription('Semua riwayat perubahan status pendaftar pada periode ini')
-                        ->modalSubmitAction(false)
-                        ->modalCancelActionLabel('Tutup')
-                        ->modalContent(fn () => view('filament.modals.status-history-table', [
-                            'periodeId' => $this->getOwnerRecord()->id,
-                        ])),
+                        ->modalWidth('2xl'),
                 ])
                 ->color('warning'),
             ])

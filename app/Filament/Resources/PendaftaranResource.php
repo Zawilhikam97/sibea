@@ -226,21 +226,21 @@ class PendaftaranResource extends Resource
                         Components\Section::make('Status')
                             ->schema([
                                 Components\TextEntry::make('status')
-                                            ->badge()
-                                            ->columnSpanFull(),
-                                        Components\TextEntry::make('created_at')
-                                            ->label('Tanggal Mendaftar')
-                                            ->dateTime(),
-                                        Components\TextEntry::make('updated_at')
-                                            ->label('Terakhir Diupdate')
-                                            ->dateTime(),
+                                    ->badge()
+                                    ->columnSpanFull(),
+                                Components\TextEntry::make('note')
+                                    ->label('Catatan')
+                                    ->markdown(),
                             ]),
 
-                        Components\Section::make('Catatan')
+                        Components\Section::make('Waktu Pendaftaran')
                             ->schema([
-                                Components\TextEntry::make('note')
-                                    ->label('')
-                                    ->markdown(),
+                                Components\TextEntry::make('created_at')
+                                    ->label('Tanggal Mendaftar')
+                                    ->dateTime(),
+                                Components\TextEntry::make('updated_at')
+                                    ->label('Terakhir Diupdate')
+                                    ->dateTime(),
                             ])
                             ->visible(fn($record) => filled($record->note)),
                     ])
@@ -272,6 +272,9 @@ class PendaftaranResource extends Resource
                     ->label('NIM')
                     ->searchable()
                     ->sortable()
+                    ->copyable()
+                    ->copyMessage('NIM berhasil disalin')
+                    ->copyMessageDuration(1500)
                     ->hidden(fn() => auth()->user()->hasRole(UserRole::MAHASISWA)),
 
                 Tables\Columns\TextColumn::make('status')
@@ -416,7 +419,6 @@ class PendaftaranResource extends Resource
                     ->modalDescription('Ubah status untuk semua pendaftar yang dipilih.'),
             ])
             ->headerActions([
-                Tables\Actions\ActionGroup::make([
                     Tables\Actions\Action::make('bulkUpdateByNim')
                         ->label('Bulk Update Status')
                         ->icon('heroicon-o-pencil-square')
@@ -551,10 +553,6 @@ class PendaftaranResource extends Resource
                         ->modalContent(fn () => view('filament.modals.status-history-table', [
                             'periodeId' => null, // Show all periods
                         ])),
-                ])
-                ->icon('heroicon-o-bars-3')
-                ->color('warning')
-                ->visible(auth()->user()->hasAnyRole([UserRole::ADMIN, UserRole::STAFF])),
             ])
             ->defaultSort('created_at', 'desc');
     }
